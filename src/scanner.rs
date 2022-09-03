@@ -1,8 +1,7 @@
 use regex::Regex;
 
-#[derive(Debug)]
-#[derive(PartialEq)]
-enum TokenType {
+#[derive(Debug, Clone, PartialEq)]
+pub enum TokenKind {
     FuncDef,
     ParenthesOpen,
     ParenthesClose,
@@ -11,12 +10,13 @@ enum TokenType {
     Semicolon,
     String,
     Ident,
+    CallFunc,
 }
 
-#[derive(Debug)]
-struct Token {
-    kind: TokenType,
-    value: String
+#[derive(Debug, Clone, PartialEq)]
+pub struct Token {
+    pub kind: TokenKind,
+    pub value: String,
 }
 
 #[derive(Debug)]
@@ -34,28 +34,28 @@ impl Scanner {
         self.pos < self.tokens.len() -1
     }
 
-    pub fn next(&mut self) -> &Token {
+    pub fn next(&mut self) -> Token {
         self.pos += 1;
-        self.tokens.get(self.pos).unwrap()
+        self.tokens.get(self.pos).unwrap().clone()
     }
 
-    pub fn peek(&self) -> &Token {
-        self.tokens.get(self.pos).unwrap()
+    pub fn peek(&self) -> Token {
+        self.tokens.get(self.pos).unwrap().clone()
     }
 }
 
 fn tokenize(word: &str) -> Token { 
     match word {
-        "fn" => Token {kind: TokenType::FuncDef, value: word.to_string()},
-        "(" => Token {kind: TokenType::ParenthesOpen, value: word.to_string()},
-        ")" => Token {kind: TokenType::ParenthesClose, value: word.to_string()},
-        "{" => Token {kind: TokenType::Begin, value: word.to_string()},
-        "}" => Token {kind: TokenType::End, value: word.to_string()},
-        ";" => Token {kind: TokenType::Semicolon, value: word.to_string()},
+        "fn" => Token {kind: TokenKind::FuncDef, value: word.to_string()},
+        "(" => Token {kind: TokenKind::ParenthesOpen, value: word.to_string()},
+        ")" => Token {kind: TokenKind::ParenthesClose, value: word.to_string()},
+        "{" => Token {kind: TokenKind::Begin, value: word.to_string()},
+        "}" => Token {kind: TokenKind::End, value: word.to_string()},
+        ";" => Token {kind: TokenKind::Semicolon, value: word.to_string()},
         x =>{
             match x.chars().next().unwrap() {
-                '"' => Token {kind: TokenType::String, value: word.to_string()},
-                _ => Token {kind: TokenType::Ident, value: word.to_string()}
+                '"' => Token {kind: TokenKind::String, value: word.to_string()},
+                _ => Token {kind: TokenKind::Ident, value: word.to_string()}
             }
 
 
@@ -123,7 +123,7 @@ use super::*;
     #[test]
     fn scanner_hello_world() {
         let text = r#"
-            fn main2() {
+            fn main() {
                 print("Hello World");
             }
         "#;
@@ -131,64 +131,62 @@ use super::*;
 
         assert!(scanner.is_not_end());
 
-        // @TODO eq traitを実装する
-        let mut token: &Token;
-        token = scanner.peek();
-        
-        assert_eq!(token.kind, TokenType::FuncDef);
-        assert_eq!(token.value, "fn".to_string());
+        assert_eq!(
+            scanner.peek(),
+            Token {kind: TokenKind::FuncDef, value: "fn".to_string()},
+        );
 
-        token = scanner.next();
-        
-        assert_eq!(token.kind, TokenType::Ident);
-        assert_eq!(token.value, "main2".to_string());
+        assert_eq!(
+            scanner.next(),
+            Token {kind: TokenKind::Ident, value: "main".to_string()},
+        );
 
-        token = scanner.next();
-        
-        assert_eq!(token.kind, TokenType::ParenthesOpen);
-        assert_eq!(token.value, "(".to_string());
+        assert_eq!(
+            scanner.next(),
+            Token {kind: TokenKind::ParenthesOpen, value: "(".to_string()},
+        );
 
-        token = scanner.next();
-        
-        assert_eq!(token.kind, TokenType::ParenthesClose);
-        assert_eq!(token.value, ")".to_string());
+        assert_eq!(
+            scanner.next(),
+            Token {kind: TokenKind::ParenthesClose, value: ")".to_string()},
+        );
 
-        token = scanner.next();
-        
-        assert_eq!(token.kind, TokenType::Begin);
-        assert_eq!(token.value, "{".to_string());
+        assert_eq!(
+            scanner.next(),
+            Token {kind: TokenKind::Begin, value: "{".to_string()},
+        );
 
-        token = scanner.next();
-        
-        assert_eq!(token.kind, TokenType::Ident);
-        assert_eq!(token.value, "print".to_string());
+        assert_eq!(
+            scanner.next(),
+            Token {kind: TokenKind::Ident, value: "print".to_string()},
+        );
 
-        token = scanner.next();
-        
-        assert_eq!(token.kind, TokenType::ParenthesOpen);
-        assert_eq!(token.value, "(".to_string());
+        assert_eq!(
+            scanner.next(),
+            Token {kind: TokenKind::ParenthesOpen, value: "(".to_string()},
+        );
 
-        token = scanner.next();
-        
-        assert_eq!(token.kind, TokenType::String);
-        assert_eq!(token.value, "\"Hello World\"".to_string());
+        assert_eq!(
+            scanner.next(),
+            Token {kind: TokenKind::String, value: "\"Hello World\"".to_string()},
+        );
 
-        token = scanner.next();
+        assert_eq!(
+            scanner.next(),
+            Token {kind: TokenKind::ParenthesClose, value: ")".to_string()},
+        );
         
-        assert_eq!(token.kind, TokenType::ParenthesClose);
-        assert_eq!(token.value, ")".to_string());
-
-        token = scanner.next();
-        
-        assert_eq!(token.kind, TokenType::Semicolon);
-        assert_eq!(token.value, ";".to_string());
+        assert_eq!(
+            scanner.next(),
+            Token {kind: TokenKind::Semicolon, value: ";".to_string()},
+        );
 
         assert!(scanner.is_not_end());
 
-        token = scanner.next();
-        
-        assert_eq!(token.kind, TokenType::End);
-        assert_eq!(token.value, "}".to_string());
+        assert_eq!(
+            scanner.next(),
+            Token {kind: TokenKind::End, value: "}".to_string()},
+        );
 
         assert!(!scanner.is_not_end());
     }
