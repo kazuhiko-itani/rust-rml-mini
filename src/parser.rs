@@ -1,12 +1,13 @@
 use super::scanner;
 
-type Program = Vec<FuncDef>;
-type FuncDef = (scanner::Token, Vec<scanner::Token>, FuncArgs, StatList);
-type FuncArgs = Vec<scanner::Token>;
-type StatList = Vec<Statement>;
-type Statement = Vec<CallFunc>;
-type CallFunc = (scanner::Token, Vec<scanner::Token>, Vec<scanner::Token>);
-
+pub type Program = Vec<FuncDef>;
+pub type FuncDef = (scanner::Token, Vec<scanner::Token>, FuncArgs, StatList);
+pub type FuncArgs = Vec<scanner::Token>;
+pub type StatList = Vec<Statement>;
+pub type Statement = Vec<CallFunc>;
+pub type CallFunc = Vec<scanner::Token>;
+pub type Factor = Vec<scanner::Token>;
+pub type Literal = Vec<scanner::Token>;
 #[derive(Debug)]
 pub struct Parser {
     scanner: scanner::Scanner
@@ -26,14 +27,21 @@ impl Parser {
         token.kind == kind
     }
 
-    fn take(&mut self, kind: scanner::TokenKind) -> scanner::Token {
+    fn take(&mut self, kind: Vec<scanner::TokenKind>) -> scanner::Token {
         let token = self.scanner.peek();
 
         if self.scanner.is_not_end() {
             self.scanner.next();
         }
 
-        if token.kind != kind {
+        let mut result = false;
+        for k in kind {
+            if token.kind == k {
+                result = true;
+            }
+        }
+
+        if !result {
             panic!("Syntax Error: expect.kind={:?}, actual.kind={:?}, token.value={:?}", kind, token.kind, token.value);
         }
 
@@ -50,14 +58,14 @@ impl Parser {
     }
 
     fn func_def(&mut self) -> FuncDef {
-        let func_def = self.take(scanner::TokenKind::FuncDef);
-        let ident = self.take(scanner::TokenKind::Ident);
-        self.take(scanner::TokenKind::ParenthesOpen);
+        let func_def = self.take(vec![scanner::TokenKind::FuncDef]);
+        let ident = self.take(vec![scanner::TokenKind::Ident]);
+        self.take(vec![scanner::TokenKind::ParenthesOpen]);
         let func_args: FuncArgs = self.func_args();
-        self.take(scanner::TokenKind::ParenthesClose);
-        self.take(scanner::TokenKind::Begin);
+        self.take(vec![scanner::TokenKind::ParenthesClose]);
+        self.take(vec![scanner::TokenKind::Begin]);
         let stat_list: StatList = self.stat_list();
-        self.take(scanner::TokenKind::End);
+        self.take(vec![scanner::TokenKind::End]);
 
         (
             func_def,
@@ -67,8 +75,16 @@ impl Parser {
         )
     }
 
-    fn func_args(&self) -> FuncArgs {
-        let func_args: FuncArgs = Vec::new();
+    fn func_args(&mut self) -> FuncArgs {
+        let mut func_args: FuncArgs = Vec::new();
+        
+        while self.is_match(scanner::TokenKind::Ident) {
+            func_args.push(self.take(vec![scanner::TokenKind::Ident]));
+            if self.is_match(scanner::TokenKind::Comma) {
+                self.take(vec![scanner::TokenKind::Comma]);
+            }
+        }
+
         func_args
     }
 
@@ -83,24 +99,76 @@ impl Parser {
 
     fn statement(&mut self) -> Statement {
         let mut statement: Statement = vec!();
-        let name = self.take(scanner::TokenKind::Ident);
+
+        if self.is_match(scanner::TokenKind::While) {
+            statement.push(self.call_while());
+        }
+
+        let name = self.take(vec![scanner::TokenKind::Ident]);
         statement.push(self.call_func(name));
-        self.take(scanner::TokenKind::Semicolon);
+        self.take(vec![scanner::TokenKind::Semicolon]);
 
         statement
     }
 
     fn call_func(&mut self, name: scanner::Token) -> CallFunc {
-        let call_func = scanner::Token {kind: scanner::TokenKind::CallFunc, value: "".to_string()};
-        self.take(scanner::TokenKind::ParenthesOpen);
-        let string = self.take(scanner::TokenKind::String);
-        self.take(scanner::TokenKind::ParenthesClose);
+        let mut call_func: CallFunc = vec!(); 
 
-        (
-            call_func,
-            vec![name],
-            vec![string]
-        )
+        call_func.push(scanner::Token {kind: scanner::TokenKind::CallFunc, value: "".to_string()});
+        call_func.push(name);
+        self.take(vec![scanner::TokenKind::ParenthesOpen]);
+        for arg in self.call_args() {
+            call_func.push(arg);
+        }
+        self.take(vec![scanner::TokenKind::ParenthesClose]);
+
+        call_func
+    }
+
+    fn call_args(&mut self) -> Vec<scanner::Token> {
+
+    }
+
+    fn call_while(&mut self) {}
+
+    fn relation(&mut self) {}
+
+    fn expr(&mut self) {}
+
+    fn term(&mut self) {
+        let mut term = self.factor();
+
+
+        while self.is_match(scanner::TokenKind::OpMul) {
+            let token = self.take(vec![scanner::TokenKind::OpMul]);
+
+            match token.value.chars().nth(0).unwrap() {
+                '*'=> {
+                    term = [scanner::Token { kind: scanner::TokenKind::Mul, value: '*'.to_string()}, term, self.factor()];
+                }
+            }
+        }
+    }
+
+    fn factor(&mut self) -> Factor {
+        if self.is_match(scanner::TokenKind::ParenthesOpen) {
+            self.take(vec![scanner::TokenKind::ParenthesOpen]);
+            let factor = self.expr();
+            self.take(vec![scanner::TokenKind::ParenthesClose]);
+
+            return factor
+        }
+
+        self.literal()
+    }
+
+    fn literal(&mut self) -> Literal {
+        let literalToken = self.take(vec![scanner::TokenKind::Int, scanner::TokenKind::String, scanner::TokenKind::Bool, scanner::TokenKind::Ident]);
+        if literalToken.kind == scanner::TokenKind::Ident && self.is_match(scanner::TokenKind::ParenthesOpen) {
+            return self.call_func(literalToken)
+        }
+
+        vec![literalToken]
     }
 }
 
